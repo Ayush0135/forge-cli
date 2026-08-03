@@ -1,0 +1,169 @@
+import json
+from typing import Any, Dict, Generator, List, Optional, Union
+
+import httpx
+
+from forge_cli.providers.base import BaseProvider
+from forge_cli.utils.key_manager import RoundRobinKeyManager
+from forge_cli.utils.logger import logger
+
+
+class OpenAIProvider(BaseProvider):
+    def __init__(
+        self, key_manager: RoundRobinKeyManager, model: str = "gpt-4o", base_url: str = "https://api.openai.com/v1"
+    ):
+        self.key_manager = key_manager
+        self.model = model
+        self.base_url = base_url
+
+    def _format_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        formatted = []
+        for msg in messages:
+            if msg["role"] == "user" or (msg["role"] == "assistant" and "tool_call" not in msg):
+                formatted.append({"role": msg["role"], "content": msg.get("content", "")})
+            elif msg["role"] == "assistant" and "tool_call" in msg:
+                formatted.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.get("content", ""),
+                        "tool_calls": [
+                            {
+                                "id": msg["tool_call"].get("id", "call_123"),
+                                "type": "function",
+                                "function": {
+                                    "name": msg["tool_call"]["name"],
+                                    "arguments": json.dumps(msg["tool_call"]["args"]),
+                                },
+                            }
+                        ],
+                    }
+                )
+            elif msg["role"] == "tool":
+                formatted.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": msg.get("id", "call_123"),
+                        "content": str(msg.get("content", "")),
+                    }
+                )
+        return formatted
+
+    def _prepare_payload(
+        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        payload = {"model": self.model, "messages": self._format_messages(messages)}
+        if tools:
+            payload["tools"] = [{"type": "function", "function": t} for t in tools]
+        return payload
+
+    def chat(
+        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
+    ) -> Union[str, Dict[str, Any]]:
+        url = f"{self.base_url}/chat/completions"
+        payload = self._prepare_payload(messages, tools)
+
+        max_retries = len(self.key_manager.keys)
+        last_error = None
+
+        for attempt in range(max_retries):
+            api_key = self.key_manager.get_key()
+            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+
+            try:
+                with httpx.Client() as client:
+                    response = client.post(url, json=payload, headers=headers, timeout=30.0)
+
+                    if response.status_code == 429:
+                        logger.warning(f"Rate limit hit for key ending in ...{api_key[-4:]}. Rotating...")
+                        self.key_manager.next_key()
+                        continue
+
+                    response.raise_for_status()
+                    data = response.json()
+                    message = data["choices"][0]["message"]
+
+                    if "tool_calls" in message and message["tool_calls"]:
+                        tc = message["tool_calls"][0]
+                        return {
+                            "type": "tool_call",
+                            "id": tc.get("id", "call_123"),
+                            "name": tc["function"]["name"],
+                            "args": json.loads(tc["function"]["arguments"]),
+                        }
+                    return str(message.get("content", ""))
+            except Exception as e:
+                logger.error(f"OpenAI API Error: {str(e)}")
+                last_error = e
+                break
+
+        return f"Error: {str(last_error) if last_error else 'All keys rate limited (429).'}"
+
+    def stream(
+        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
+    ) -> Generator[Union[str, Dict[str, Any]], None, None]:
+        url = f"{self.base_url}/chat/completions"
+        payload = self._prepare_payload(messages, tools)
+        payload["stream"] = True
+
+        max_retries = len(self.key_manager.keys)
+
+        for attempt in range(max_retries):
+            api_key = self.key_manager.get_key()
+            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+
+            try:
+                with httpx.Client() as client:
+                    with client.stream("POST", url, json=payload, headers=headers, timeout=30.0) as response:
+                        if response.status_code == 429:
+                            logger.warning(f"Rate limit hit for key ending in ...{api_key[-4:]}. Rotating...")
+                            self.key_manager.next_key()
+                            for _ in response.iter_lines():
+                                pass
+                            continue
+
+                        response.raise_for_status()
+
+                        tool_call_name = None
+                        tool_call_id = None
+                        tool_call_args = ""
+                        is_tool_call = False
+
+                        for line in response.iter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                if data_str == "[DONE]":
+                                    break
+                                try:
+                                    data = json.loads(data_str)
+                                    delta = data["choices"][0].get("delta", {})
+
+                                    if "tool_calls" in delta and delta["tool_calls"]:
+                                        is_tool_call = True
+                                        tc = delta["tool_calls"][0]
+                                        if "id" in tc and tc["id"]:
+                                            tool_call_id = tc["id"]
+                                        if "function" in tc:
+                                            func = tc["function"]
+                                            if "name" in func and func["name"]:
+                                                tool_call_name = func["name"]
+                                            if "arguments" in func and func["arguments"]:
+                                                tool_call_args += func["arguments"]
+                                    elif "content" in delta and delta["content"]:
+                                        yield delta["content"]
+                                except (KeyError, IndexError, json.JSONDecodeError):
+                                    continue
+
+                        if is_tool_call:
+                            yield {
+                                "type": "tool_call",
+                                "name": tool_call_name,
+                                "args": json.loads(tool_call_args) if tool_call_args else {},
+                                "id": tool_call_id or "call_123",
+                            }
+                        return
+            except Exception as e:
+                logger.error(f"OpenAI API Stream Error: {str(e)}")
+                yield f"\n[Error: {str(e)}]"
+                return
+
+        yield "\n[Error: All keys rate limited (429).]"

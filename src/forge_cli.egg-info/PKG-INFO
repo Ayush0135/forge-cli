@@ -1,0 +1,33 @@
+Metadata-Version: 2.4
+Name: forge-cli
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: anthropic>=0.120.2
+Requires-Dist: google-genai>=2.16.0
+Requires-Dist: openai>=2.52.0
+Requires-Dist: pydantic-settings>=2.14.2
+Requires-Dist: python-dotenv>=1.2.2
+Requires-Dist: rich>=15.0.0
+Requires-Dist: typer>=0.27.1
+
+# Ayush CLI
+
+A production-quality AI coding assistant CLI.
+
+## Installation
+
+```bash
+uv sync
+```
+
+## Usage
+
+```bash
+# Start interactive mode
+uv run ayush
+
+# Single prompt mode
+uv run ayush "explain this code"
+```
