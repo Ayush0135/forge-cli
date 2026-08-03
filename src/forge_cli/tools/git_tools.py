@@ -37,7 +37,7 @@ class GitTools:
         try:
             diff = repo.git.diff("--staged") if staged else repo.git.diff()
             return json.dumps({"diff": diff})
-        except Exception as e:  # noqa: BLE001 - GitPython exposes several runtime command errors.
+        except Exception as e:
             return json.dumps({"error": str(e)})
 
     @staticmethod
@@ -56,7 +56,7 @@ class GitTools:
                     "date": commit.committed_datetime.isoformat()
                 })
             return json.dumps({"commits": commits})
-        except Exception as e:  # noqa: BLE001 - GitPython exposes several runtime command errors.
+        except Exception as e:
             return json.dumps({"error": str(e)})
 
     @staticmethod
@@ -69,7 +69,7 @@ class GitTools:
             branches = [h.name for h in repo.heads]
             active = repo.active_branch.name if not repo.head.is_detached else "detached"
             return json.dumps({"active": active, "branches": branches})
-        except Exception as e:  # noqa: BLE001 - GitPython exposes several runtime command errors.
+        except Exception as e:
             return json.dumps({"error": str(e)})
 
     @staticmethod
@@ -82,7 +82,7 @@ class GitTools:
             repo.git.add(all=True)
             commit = repo.index.commit(message)
             return json.dumps({"success": True, "hash": commit.hexsha})
-        except Exception as e:  # noqa: BLE001 - GitPython exposes several runtime command errors.
+        except Exception as e:
             return json.dumps({"error": str(e)})
 
     @staticmethod
@@ -97,5 +97,5 @@ class GitTools:
             else:
                 repo.git.checkout(branch_or_commit)
             return json.dumps({"success": True, "checkout": branch_or_commit})
-        except Exception as e:  # noqa: BLE001 - GitPython exposes several runtime command errors.
+        except Exception as e:
             return json.dumps({"error": str(e)})

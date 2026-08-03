@@ -64,6 +64,12 @@ class ToolManager:
             parameters={"type": "object", "properties": {"pattern": {"type": "string"}, "path": {"type": "string"}, "regex": {"type": "boolean"}}, "required": ["pattern"]}
         )
         self.register(
+            name="search_symbol",
+            func=SearchTools.search_symbol,
+            description="Searches AST parsed symbols (classes, functions, etc.).",
+            parameters={"type": "object", "properties": {"query": {"type": "string"}, "path": {"type": "string"}}, "required": ["query"]}
+        )
+        self.register(
             name="git_status",
             func=GitTools.git_status,
             description="Returns current git status.",
@@ -114,7 +120,7 @@ class ToolManager:
         try:
             result = self.tools[name]["func"](**args)
             return str(result)
-        except Exception as e:  # noqa: BLE001 - registered tools are third-party callable boundaries.
+        except Exception as e:
             error_msg = f"Tool '{name}' failed: {e!s}\n{traceback.format_exc()}"
             logger.error(error_msg)
             return json.dumps({"error": error_msg})

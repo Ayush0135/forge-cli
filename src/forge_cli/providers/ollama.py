@@ -25,7 +25,7 @@ class OllamaProvider(BaseProvider):
                 response.raise_for_status()
                 data = response.json()
                 return str(data["message"]["content"])
-        except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+        except Exception as e:
             logger.error(f"Ollama API Error: {e!s}")
             return f"Error: {e!s}"
 
@@ -48,6 +48,6 @@ class OllamaProvider(BaseProvider):
                                     break
                             except json.JSONDecodeError:
                                 continue
-        except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+        except Exception as e:
             logger.error(f"Ollama API Stream Error: {e!s}")
             yield f"\n[Error: {e!s}]"

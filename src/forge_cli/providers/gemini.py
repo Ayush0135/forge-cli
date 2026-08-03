@@ -89,7 +89,7 @@ class GeminiProvider(BaseProvider):
                     except (KeyError, IndexError) as e:
                         logger.error(f"Failed to parse Gemini response: {data}")
                         return f"Error: Unexpected response format. {e}"
-            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+            except Exception as e:
                 logger.error(f"Gemini API Error: {e!s}")
                 last_error = e
                 break
@@ -136,7 +136,7 @@ class GeminiProvider(BaseProvider):
                                 except (KeyError, IndexError, json.JSONDecodeError):
                                     continue
                         return
-            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+            except Exception as e:
                 logger.error(f"Gemini API Stream Error: {e!s}")
                 yield f"\n[Error: {e!s}]"
                 return

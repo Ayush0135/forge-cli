@@ -1,6 +1,10 @@
+import json
+import re
+import threading
 from pathlib import Path
 
-from forge_cli.tools.git_tools import GitTools
+from forge_cli.core.indexer import RepositoryIndexer
+from forge_cli.core.symbols import SymbolStore
 
 
 class ContextEngine:
@@ -8,75 +12,86 @@ class ContextEngine:
 
     def __init__(self, workspace_path: str = "."):
         self.workspace_path = Path(workspace_path).resolve()
-
-    def get_project_tree(self, max_depth: int = 3) -> str:
-        """Returns a condensed directory tree structure."""
-        ignore_dirs = {".git", ".venv", "node_modules", "__pycache__", ".forge", "build", "dist", ".idea", ".vscode"}
+        self.indexer = RepositoryIndexer(str(self.workspace_path))
+        self.symbol_store = SymbolStore(str(self.workspace_path))
         
-        tree_lines = []
+        # Trigger async index build if no cache
+        self.indexer.build_index_async()
         
-        def walk(current_path: Path, depth: int):
-            if depth > max_depth:
-                return
-                
-            try:
-                items = sorted(current_path.iterdir(), key=lambda p: (not p.is_dir(), p.name))
-                for item in items:
-                    if item.name in ignore_dirs or (item.name.startswith(".") and item.name != ".github"):
-                        continue
-                        
-                    indent = "  " * depth
-                    if item.is_dir():
-                        tree_lines.append(f"{indent}📁 {item.name}/")
-                        walk(item, depth + 1)
-                    else:
-                        tree_lines.append(f"{indent}📄 {item.name}")
-            except OSError:
-                # A repository may contain unreadable files or directories.
-                return
-                
-        tree_lines.append(f"📁 {self.workspace_path.name}/")
-        walk(self.workspace_path, 1)
-        return "\n".join(tree_lines)
+        if not self.symbol_store.load_cache():
+            def build_symbols():
+                idx = self.indexer.get_index()
+                tree = idx.get("tree", [])
+                valid_exts = {".py", ".js", ".ts", ".tsx"}
+                parse_files = [f for f in tree if Path(f).suffix.lower() in valid_exts]
+                self.symbol_store.build_store(parse_files)
+            threading.Thread(target=build_symbols, daemon=True).start()
 
     def get_readme_summary(self) -> str:
-        """Attempts to read the README.md."""
-        for name in ["README.md", "README.txt", "readme.md"]:
-            p = self.workspace_path / name
-            if p.exists():
+        idx = self.indexer.get_index()
+        important_files = idx.get("important_files", [])
+        for f in important_files:
+            if Path(f).name.lower() == "readme.md":
                 try:
-                    content = p.read_text(encoding="utf-8")
+                    content = (self.workspace_path / f).read_text(encoding="utf-8")
                     return content[:800] + ("..." if len(content) > 800 else "")
-                except (OSError, UnicodeDecodeError):
-                    continue
+                except Exception:
+                    pass
         return "No README found."
 
-    def get_git_status(self) -> str:
-        """Returns the current git status."""
-        return GitTools.git_status(str(self.workspace_path))
-
-    def build_system_prompt(self) -> str:
-        """Compiles the system prompt with all context."""
+    def build_system_prompt(self, user_prompt: str = "") -> str:
+        """Compiles the system prompt dynamically based on the user prompt."""
+        idx = self.indexer.get_index()
+        
+        keywords = re.findall(r'\b[A-Za-z0-9_]{3,}\b', user_prompt)
+        
+        relevant_symbols = []
+        if self.symbol_store.symbols:
+            for kw in keywords:
+                if kw.lower() in {"find", "search", "the", "and", "how", "what", "where", "can", "you", "fix"}:
+                    continue
+                matches = self.symbol_store.find_symbol(kw)
+                relevant_symbols.extend(matches[:3])
+        
+        unique_symbols = {s.name: s for s in relevant_symbols}.values()
+        
         context_parts = [
             "You are Forge CLI, an advanced autonomous AI coding assistant.",
             "You have access to a suite of powerful tools.",
             "",
             "### REPOSITORY CONTEXT ###",
+            f"Project: {idx.get('project_name', 'Unknown')}",
             f"Current Directory: {self.workspace_path}",
+            f"Languages: {', '.join(idx.get('languages', {}).keys())}",
+            f"Frameworks: {', '.join(idx.get('frameworks', []))}",
             "",
-            "#### Project Tree ####",
-            self.get_project_tree(),
-            "",
+        ]
+        
+        if unique_symbols:
+            context_parts.append("#### Relevant Code Symbols ####")
+            for sym in unique_symbols:
+                snippet = sym.code_snippet[:200] + "..." if sym.code_snippet and len(sym.code_snippet) > 200 else sym.code_snippet
+                context_parts.append(f"- {sym.kind} `{sym.name}` in {sym.file_path}:{sym.start_line}")
+                if snippet:
+                    context_parts.append(f"  ```\n  {snippet}\n  ```")
+            context_parts.append("")
+        else:
+            tree = idx.get('tree', [])
+            context_parts.append("#### Project Tree (Partial) ####")
+            context_parts.append("\n".join(tree[:50]))
+            context_parts.append("")
+            
+        context_parts.extend([
             "#### README Summary ####",
             self.get_readme_summary(),
             "",
             "#### Git Status ####",
-            self.get_git_status(),
+            json.dumps(idx.get("git_status", {})),
             "",
             "### RULES ###",
             "- Always use tools to inspect code before modifying.",
             "- Use the edit_file tool for precise patches rather than replacing entire files.",
             "- Execute shell commands safely using run_command."
-        ]
+        ])
         
         return "\n".join(context_parts)

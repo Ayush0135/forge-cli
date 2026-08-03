@@ -49,7 +49,7 @@ def start_interactive_chat() -> None:
                     for chunk in session.agent.stream_run(context):
                         console.print(chunk, end="", markup=False)
                     console.print()
-                except Exception as e:  # noqa: BLE001 - an interactive session must remain available after provider errors.
+                except Exception as e:
                     console.print(f"\n[bold red]Error during stream:[/bold red] {e}")
                     continue
 
@@ -64,7 +64,7 @@ def start_interactive_chat() -> None:
         logger.error(str(e))
         console.print(f"[bold red]Configuration Error:[/bold red] {e}")
         sys.exit(1)
-    except Exception as e:  # noqa: BLE001 - convert unexpected CLI failures into a non-zero exit.
+    except Exception as e:
         logger.error(f"Unexpected error: {e}")
         console.print(f"[bold red]Error:[/bold red] {e}")
         sys.exit(1)
@@ -93,7 +93,7 @@ def run_single_prompt(prompt: str) -> None:
         logger.error(str(e))
         console.print(f"[bold red]Configuration Error:[/bold red] {e}")
         sys.exit(1)
-    except Exception as e:  # noqa: BLE001 - convert unexpected CLI failures into a non-zero exit.
+    except Exception as e:
         logger.error(f"Unexpected error: {e}")
         console.print(f"[bold red]Error:[/bold red] {e}")
         sys.exit(1)

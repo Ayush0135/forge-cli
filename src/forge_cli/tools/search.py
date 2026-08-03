@@ -3,9 +3,29 @@ import os
 import re
 import subprocess
 
+from forge_cli.core.symbols import SymbolStore
+
 
 class SearchTools:
     """Provides file and content search capabilities."""
+
+    @staticmethod
+    def search_symbol(query: str, path: str = ".") -> str:
+        """Searches for parsed AST symbols."""
+        store = SymbolStore(path)
+        if not store.load_cache():
+            return json.dumps({"error": "Symbol cache not ready. Run indexer first."})
+            
+        symbols = store.find_symbol(query)
+        results = []
+        for s in symbols[:50]:
+            results.append({
+                "name": s.name,
+                "kind": s.kind,
+                "file": s.file_path,
+                "line": s.start_line
+            })
+        return json.dumps({"symbols": results, "total": len(symbols)})
 
     @staticmethod
     def _has_ripgrep() -> bool:

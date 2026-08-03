@@ -92,7 +92,7 @@ class OpenAIProvider(BaseProvider):
                             "args": json.loads(tc["function"]["arguments"]),
                         }
                     return str(message.get("content", ""))
-            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+            except Exception as e:
                 logger.error(f"OpenAI API Error: {e!s}")
                 last_error = e
                 break
@@ -161,7 +161,7 @@ class OpenAIProvider(BaseProvider):
                                 "id": tool_call_id or "call_123",
                             }
                         return
-            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+            except Exception as e:
                 logger.error(f"OpenAI API Stream Error: {e!s}")
                 yield f"\n[Error: {e!s}]"
                 return
