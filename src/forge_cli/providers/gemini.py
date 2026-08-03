@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, Generator, List, Optional, Union
+from collections.abc import Generator
+from typing import Any
 
 import httpx
 
@@ -14,7 +15,7 @@ class GeminiProvider(BaseProvider):
         self.model = model
         self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}"
 
-    def _format_messages(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _format_messages(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Convert standard messages to Gemini format."""
         contents = []
         for msg in messages:
@@ -44,8 +45,8 @@ class GeminiProvider(BaseProvider):
         return {"contents": contents}
 
     def _prepare_payload(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         payload = self._format_messages(messages)
         if tools:
             # Gemini format for tools
@@ -53,8 +54,8 @@ class GeminiProvider(BaseProvider):
         return payload
 
     def chat(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Union[str, Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> str | dict[str, Any]:
         payload = self._prepare_payload(messages, tools)
         headers = {"Content-Type": "application/json"}
         max_retries = len(self.key_manager.keys)
@@ -88,16 +89,16 @@ class GeminiProvider(BaseProvider):
                     except (KeyError, IndexError) as e:
                         logger.error(f"Failed to parse Gemini response: {data}")
                         return f"Error: Unexpected response format. {e}"
-            except Exception as e:
-                logger.error(f"Gemini API Error: {str(e)}")
+            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+                logger.error(f"Gemini API Error: {e!s}")
                 last_error = e
                 break
 
         return f"Error: {str(last_error) if last_error else 'All keys rate limited (429).'}"
 
     def stream(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Generator[Union[str, Dict[str, Any]], None, None]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> Generator[str | dict[str, Any], None, None]:
         payload = self._prepare_payload(messages, tools)
         headers = {"Content-Type": "application/json"}
         max_retries = len(self.key_manager.keys)
@@ -107,8 +108,7 @@ class GeminiProvider(BaseProvider):
             url = f"{self.base_url}:streamGenerateContent?alt=sse&key={api_key}"
 
             try:
-                with httpx.Client() as client:
-                    with client.stream("POST", url, json=payload, headers=headers, timeout=30.0) as response:
+                with httpx.Client() as client, client.stream("POST", url, json=payload, headers=headers, timeout=30.0) as response:
                         if response.status_code == 429:
                             logger.warning(f"Rate limit hit for key ending in ...{api_key[-4:]}. Rotating...")
                             self.key_manager.next_key()
@@ -136,9 +136,9 @@ class GeminiProvider(BaseProvider):
                                 except (KeyError, IndexError, json.JSONDecodeError):
                                     continue
                         return
-            except Exception as e:
-                logger.error(f"Gemini API Stream Error: {str(e)}")
-                yield f"\n[Error: {str(e)}]"
+            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+                logger.error(f"Gemini API Stream Error: {e!s}")
+                yield f"\n[Error: {e!s}]"
                 return
 
         yield "\n[Error: All keys rate limited (429).]"

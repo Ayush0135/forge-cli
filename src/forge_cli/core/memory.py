@@ -1,11 +1,11 @@
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class MemorySystem:
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         if db_path is None:
             self.base_dir = Path.home() / ".forge"
             self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -44,7 +44,7 @@ class MemorySystem:
             conn.execute("INSERT OR IGNORE INTO sessions (session_id, model) VALUES (?, ?)", (session_id, model))
             conn.commit()
 
-    def add_message(self, session_id: str, message: Dict[str, Any]) -> None:
+    def add_message(self, session_id: str, message: dict[str, Any]) -> None:
         """Add a full message dictionary to a session."""
         role = message.get("role", "unknown")
         content = json.dumps(message)
@@ -54,7 +54,7 @@ class MemorySystem:
             )
             conn.commit()
 
-    def get_messages(self, session_id: str) -> List[Dict[str, Any]]:
+    def get_messages(self, session_id: str) -> list[dict[str, Any]]:
         """Retrieve all messages for a given session."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -71,7 +71,7 @@ class MemorySystem:
                     messages.append({"role": row["role"], "content": row["content"]})
             return messages
 
-    def get_latest_session_id(self) -> Optional[str]:
+    def get_latest_session_id(self) -> str | None:
         """Get the ID of the most recent session."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("SELECT session_id FROM sessions ORDER BY created_at DESC LIMIT 1")

@@ -1,9 +1,9 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from forge_cli.tools.filesystem import FileSystemTools
 
 
-def get_tool_schemas() -> List[Dict[str, Any]]:
+def get_tool_schemas() -> list[dict[str, Any]]:
     """Returns the JSON schemas for all available tools."""
     return [
         {
@@ -30,7 +30,7 @@ def get_tool_schemas() -> List[Dict[str, Any]]:
     ]
 
 
-def execute_tool(name: str, args: Dict[str, Any]) -> str:
+def execute_tool(name: str, args: dict[str, Any]) -> str:
     """Executes a tool by name and returns the string observation."""
     if name == "read_file":
         return FileSystemTools.read_file(args.get("path", ""))

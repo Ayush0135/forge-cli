@@ -1,11 +1,10 @@
 import itertools
-from typing import List
 
 
 class RoundRobinKeyManager:
     """Manages round-robin rotation of API keys to bypass rate limits."""
 
-    def __init__(self, keys: List[str]):
+    def __init__(self, keys: list[str]):
         if not keys:
             raise ValueError("At least one API key must be provided.")
         self.keys = keys

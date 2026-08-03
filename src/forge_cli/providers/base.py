@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generator, List, Optional, Union
+from collections.abc import Generator
+from typing import Any
 
 
 class BaseProvider(ABC):
@@ -7,14 +8,12 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def chat(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Union[str, Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> str | dict[str, Any]:
         """Send a chat request and return the full string response or a tool call dict."""
-        pass
 
     @abstractmethod
     def stream(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Generator[Union[str, Dict[str, Any]], None, None]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> Generator[str | dict[str, Any], None, None]:
         """Send a chat request and yield the response stream or a tool call dict."""
-        pass

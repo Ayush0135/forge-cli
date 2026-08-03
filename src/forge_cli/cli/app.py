@@ -1,4 +1,3 @@
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -12,7 +11,7 @@ console = Console()
 
 @app.callback(invoke_without_command=True)
 def main(
-    ctx: typer.Context, prompt: Optional[str] = typer.Argument(None, help="Optional single prompt to run")
+    ctx: typer.Context, prompt: str | None = typer.Argument(None, help="Optional single prompt to run")
 ) -> None:
     """
     Forge CLI - AI Coding Assistant

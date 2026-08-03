@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, Generator, List, Optional, Union
+from collections.abc import Generator
+from typing import Any
 
 import httpx
 
@@ -16,7 +17,7 @@ class OpenAIProvider(BaseProvider):
         self.model = model
         self.base_url = base_url
 
-    def _format_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _format_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         formatted = []
         for msg in messages:
             if msg["role"] == "user" or (msg["role"] == "assistant" and "tool_call" not in msg):
@@ -49,16 +50,16 @@ class OpenAIProvider(BaseProvider):
         return formatted
 
     def _prepare_payload(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         payload = {"model": self.model, "messages": self._format_messages(messages)}
         if tools:
             payload["tools"] = [{"type": "function", "function": t} for t in tools]
         return payload
 
     def chat(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Union[str, Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> str | dict[str, Any]:
         url = f"{self.base_url}/chat/completions"
         payload = self._prepare_payload(messages, tools)
 
@@ -82,7 +83,7 @@ class OpenAIProvider(BaseProvider):
                     data = response.json()
                     message = data["choices"][0]["message"]
 
-                    if "tool_calls" in message and message["tool_calls"]:
+                    if message.get("tool_calls"):
                         tc = message["tool_calls"][0]
                         return {
                             "type": "tool_call",
@@ -91,16 +92,16 @@ class OpenAIProvider(BaseProvider):
                             "args": json.loads(tc["function"]["arguments"]),
                         }
                     return str(message.get("content", ""))
-            except Exception as e:
-                logger.error(f"OpenAI API Error: {str(e)}")
+            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+                logger.error(f"OpenAI API Error: {e!s}")
                 last_error = e
                 break
 
         return f"Error: {str(last_error) if last_error else 'All keys rate limited (429).'}"
 
     def stream(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Generator[Union[str, Dict[str, Any]], None, None]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> Generator[str | dict[str, Any], None, None]:
         url = f"{self.base_url}/chat/completions"
         payload = self._prepare_payload(messages, tools)
         payload["stream"] = True
@@ -112,8 +113,7 @@ class OpenAIProvider(BaseProvider):
             headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
 
             try:
-                with httpx.Client() as client:
-                    with client.stream("POST", url, json=payload, headers=headers, timeout=30.0) as response:
+                with httpx.Client() as client, client.stream("POST", url, json=payload, headers=headers, timeout=30.0) as response:
                         if response.status_code == 429:
                             logger.warning(f"Rate limit hit for key ending in ...{api_key[-4:]}. Rotating...")
                             self.key_manager.next_key()
@@ -137,18 +137,18 @@ class OpenAIProvider(BaseProvider):
                                     data = json.loads(data_str)
                                     delta = data["choices"][0].get("delta", {})
 
-                                    if "tool_calls" in delta and delta["tool_calls"]:
+                                    if delta.get("tool_calls"):
                                         is_tool_call = True
                                         tc = delta["tool_calls"][0]
-                                        if "id" in tc and tc["id"]:
+                                        if tc.get("id"):
                                             tool_call_id = tc["id"]
                                         if "function" in tc:
                                             func = tc["function"]
-                                            if "name" in func and func["name"]:
+                                            if func.get("name"):
                                                 tool_call_name = func["name"]
-                                            if "arguments" in func and func["arguments"]:
+                                            if func.get("arguments"):
                                                 tool_call_args += func["arguments"]
-                                    elif "content" in delta and delta["content"]:
+                                    elif delta.get("content"):
                                         yield delta["content"]
                                 except (KeyError, IndexError, json.JSONDecodeError):
                                     continue
@@ -161,9 +161,9 @@ class OpenAIProvider(BaseProvider):
                                 "id": tool_call_id or "call_123",
                             }
                         return
-            except Exception as e:
-                logger.error(f"OpenAI API Stream Error: {str(e)}")
-                yield f"\n[Error: {str(e)}]"
+            except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+                logger.error(f"OpenAI API Stream Error: {e!s}")
+                yield f"\n[Error: {e!s}]"
                 return
 
         yield "\n[Error: All keys rate limited (429).]"

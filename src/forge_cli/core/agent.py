@@ -1,15 +1,17 @@
-from typing import Any, Dict, Generator, List
+from collections.abc import Generator
+from typing import Any
 
 from forge_cli.providers.base import BaseProvider
-from forge_cli.tools.registry import execute_tool, get_tool_schemas
+from forge_cli.tools.manager import ToolManager
 
 
 class Agent:
     def __init__(self, provider: BaseProvider):
         self.provider = provider
-        self.tools = get_tool_schemas()
+        self.tool_manager = ToolManager()
+        self.tools = self.tool_manager.get_schemas()
 
-    def run(self, context: List[Dict[str, Any]]) -> str:
+    def run(self, context: list[dict[str, Any]]) -> str:
         """Run the agent loop with tool support."""
         max_steps = 10
         final_response = ""
@@ -22,7 +24,7 @@ class Agent:
                 context.append({"role": "assistant", "content": "", "tool_call": tool_call})
 
                 # Execute tool
-                result = execute_tool(tool_call["name"], tool_call.get("args", {}))
+                result = self.tool_manager.execute(tool_call["name"], tool_call.get("args", {}))
 
                 # Feed observation back
                 context.append(
@@ -40,7 +42,7 @@ class Agent:
 
         return final_response
 
-    def stream_run(self, context: List[Dict[str, Any]]) -> Generator[str, None, None]:
+    def stream_run(self, context: list[dict[str, Any]]) -> Generator[str, None, None]:
         """Stream the agent run, executing tools automatically."""
         max_steps = 10
 
@@ -69,7 +71,7 @@ class Agent:
             context.append({"role": "assistant", "content": "".join(final_text_chunks), "tool_call": tool_call})
 
             # Execute the tool
-            result = execute_tool(tool_call["name"], tool_call.get("args", {}))
+            result = self.tool_manager.execute(tool_call["name"], tool_call.get("args", {}))
 
             # Feed the observation back to the LLM
             context.append(

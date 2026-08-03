@@ -6,9 +6,9 @@ tags: []
 
 # Roadmap
 
-- **v0.1**: Interactive CLI
-- **v0.2**: Developer Tools
-- **v0.3**: Repository Intelligence
-- **v0.4**: MCP
-- **v0.5**: Planner
-- **v1.0**: Production Release
+- **[x] v0.1**: Interactive CLI
+- **[x] v0.2**: Developer Tools (Shell, Search)
+- **[x] v0.3**: Repository Intelligence (Git, Context)
+- **[ ] v0.4**: MCP
+- **[ ] v0.5**: Planner
+- **[ ] v1.0**: Production Release

@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, Generator, List, Optional, Union
+from collections.abc import Generator
+from typing import Any
 
 import httpx
 
@@ -13,8 +14,8 @@ class OllamaProvider(BaseProvider):
         self.base_url = base_url
 
     def chat(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Union[str, Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> str | dict[str, Any]:
         url = f"{self.base_url}/api/chat"
         payload = {"model": self.model, "messages": messages, "stream": False}
 
@@ -24,19 +25,18 @@ class OllamaProvider(BaseProvider):
                 response.raise_for_status()
                 data = response.json()
                 return str(data["message"]["content"])
-        except Exception as e:
-            logger.error(f"Ollama API Error: {str(e)}")
-            return f"Error: {str(e)}"
+        except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+            logger.error(f"Ollama API Error: {e!s}")
+            return f"Error: {e!s}"
 
     def stream(
-        self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None
-    ) -> Generator[Union[str, Dict[str, Any]], None, None]:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> Generator[str | dict[str, Any], None, None]:
         url = f"{self.base_url}/chat"
         payload = {"model": self.model, "messages": messages, "stream": True}
 
         try:
-            with httpx.Client() as client:
-                with client.stream("POST", url, json=payload, timeout=30.0) as response:
+            with httpx.Client() as client, client.stream("POST", url, json=payload, timeout=30.0) as response:
                     response.raise_for_status()
                     for line in response.iter_lines():
                         if line:
@@ -48,6 +48,6 @@ class OllamaProvider(BaseProvider):
                                     break
                             except json.JSONDecodeError:
                                 continue
-        except Exception as e:
-            logger.error(f"Ollama API Stream Error: {str(e)}")
-            yield f"\n[Error: {str(e)}]"
+        except Exception as e:  # noqa: BLE001 - provider boundaries must return user-facing errors.
+            logger.error(f"Ollama API Stream Error: {e!s}")
+            yield f"\n[Error: {e!s}]"

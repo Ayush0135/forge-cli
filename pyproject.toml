@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.120.2",
+    "gitpython>=3.1.57",
     "google-genai>=2.16.0",
     "openai>=2.52.0",
     "pydantic-settings>=2.14.2",

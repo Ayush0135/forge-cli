@@ -1,4 +1,3 @@
-from typing import List, Optional
 
 from forge_cli.cli.config import settings
 from forge_cli.providers.base import BaseProvider
@@ -8,14 +7,14 @@ from forge_cli.providers.openai import OpenAIProvider
 from forge_cli.utils.key_manager import RoundRobinKeyManager
 
 
-def _get_keys(keys_str: Optional[str], key_str: Optional[str]) -> List[str]:
+def _get_keys(keys_str: str | None, key_str: str | None) -> list[str]:
     raw = keys_str or key_str or ""
     return [k.strip() for k in raw.split(",") if k.strip()]
 
 
 class ProviderFactory:
     @staticmethod
-    def create(provider_name: Optional[str] = None, model: Optional[str] = None) -> BaseProvider:
+    def create(provider_name: str | None = None, model: str | None = None) -> BaseProvider:
         provider = provider_name or settings.default_provider
 
         if provider == "gemini":
