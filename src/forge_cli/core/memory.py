@@ -15,9 +15,17 @@ class MemorySystem:
 
         self._init_db()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            pass
+        return conn
+
     def _init_db(self) -> None:
         """Initialize the SQLite database schema."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +48,7 @@ class MemorySystem:
 
     def create_session(self, session_id: str, model: str) -> None:
         """Create a new session."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("INSERT OR IGNORE INTO sessions (session_id, model) VALUES (?, ?)", (session_id, model))
             conn.commit()
 
@@ -48,7 +56,7 @@ class MemorySystem:
         """Add a full message dictionary to a session."""
         role = message.get("role", "unknown")
         content = json.dumps(message)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(
                 "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)", (session_id, role, content)
             )
@@ -56,10 +64,10 @@ class MemorySystem:
 
     def get_messages(self, session_id: str) -> list[dict[str, Any]]:
         """Retrieve all messages for a given session."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
-                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC", (session_id,)
+                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC, id ASC", (session_id,)
             )
             messages = []
             for row in cursor.fetchall():
@@ -73,7 +81,7 @@ class MemorySystem:
 
     def get_latest_session_id(self) -> str | None:
         """Get the ID of the most recent session."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("SELECT session_id FROM sessions ORDER BY created_at DESC LIMIT 1")
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT session_id FROM sessions ORDER BY created_at DESC, id DESC LIMIT 1")
             row = cursor.fetchone()
             return row[0] if row else None

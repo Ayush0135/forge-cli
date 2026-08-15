@@ -29,3 +29,15 @@ def test_tool_manager():
     
     result = manager.execute("run_command", {"command": "echo test"})
     assert "test" in result
+
+
+def test_tool_manager_string_args_and_errors():
+    manager = ToolManager()
+
+    # Executing with stringified JSON arguments
+    result_str_args = manager.execute("run_command", '{"command": "echo json_test"}')
+    assert "json_test" in result_str_args
+
+    # Executing non-existent tool
+    error_result = manager.execute("unknown_tool", {})
+    assert "not found" in error_result

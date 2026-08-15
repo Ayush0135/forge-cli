@@ -45,15 +45,27 @@ class ContextEngine:
         
         keywords = re.findall(r'\b[A-Za-z0-9_]{3,}\b', user_prompt)
         
+        ignored_keywords = {
+            "find", "search", "the", "and", "how", "what", "where", "can", "you",
+            "fix", "with", "this", "that", "from", "for", "have", "with", "does", "will"
+        }
+
         relevant_symbols = []
-        if self.symbol_store.symbols:
+        if keywords and self.symbol_store.symbols:
             for kw in keywords:
-                if kw.lower() in {"find", "search", "the", "and", "how", "what", "where", "can", "you", "fix"}:
+                if kw.lower() in ignored_keywords:
                     continue
                 matches = self.symbol_store.find_symbol(kw)
                 relevant_symbols.extend(matches[:3])
         
-        unique_symbols = {s.name: s for s in relevant_symbols}.values()
+        # Deduplicate symbols by (name, file_path, start_line) and cap to 10
+        unique_symbols_map = {}
+        for sym in relevant_symbols:
+            key = (sym.name, sym.file_path, sym.start_line)
+            if key not in unique_symbols_map:
+                unique_symbols_map[key] = sym
+
+        unique_symbols = list(unique_symbols_map.values())[:10]
         
         context_parts = [
             "You are Forge CLI, an advanced autonomous AI coding assistant.",

@@ -23,7 +23,20 @@ class GeminiProvider(BaseProvider):
                 contents.append({"role": "user", "parts": [{"text": msg.get("content", "")}]})
             elif msg["role"] == "assistant":
                 if "tool_call" in msg:
-                    contents.append({"role": "model", "parts": [{"functionCall": msg["tool_call"]}]})
+                    tc = msg["tool_call"]
+                    contents.append(
+                        {
+                            "role": "model",
+                            "parts": [
+                                {
+                                    "functionCall": {
+                                        "name": tc["name"],
+                                        "args": tc.get("args", {}) if isinstance(tc.get("args"), dict) else {},
+                                    }
+                                }
+                            ],
+                        }
+                    )
                 else:
                     contents.append({"role": "model", "parts": [{"text": msg.get("content", "")}]})
             elif msg["role"] == "tool":
@@ -80,12 +93,13 @@ class GeminiProvider(BaseProvider):
                     try:
                         part = data["candidates"][0]["content"]["parts"][0]
                         if "functionCall" in part:
+                            fc = part["functionCall"]
                             return {
                                 "type": "tool_call",
-                                "name": part["functionCall"]["name"],
-                                "args": part["functionCall"]["args"],
+                                "name": fc["name"],
+                                "args": fc.get("args") or {},
                             }
-                        return str(part["text"])
+                        return str(part.get("text", ""))
                     except (KeyError, IndexError) as e:
                         logger.error(f"Failed to parse Gemini response: {data}")
                         return f"Error: Unexpected response format. {e}"
@@ -126,13 +140,15 @@ class GeminiProvider(BaseProvider):
                                     data = json.loads(data_str)
                                     part = data["candidates"][0]["content"]["parts"][0]
                                     if "functionCall" in part:
+                                        fc = part["functionCall"]
                                         yield {
                                             "type": "tool_call",
-                                            "name": part["functionCall"]["name"],
-                                            "args": part["functionCall"]["args"],
+                                            "name": fc["name"],
+                                            "args": fc.get("args") or {},
                                         }
                                         return
-                                    yield part["text"]
+                                    if "text" in part:
+                                        yield part["text"]
                                 except (KeyError, IndexError, json.JSONDecodeError):
                                     continue
                         return

@@ -109,12 +109,21 @@ class ToolManager:
         """Returns schemas for all registered tools."""
         return [tool["schema"] for tool in self.tools.values()]
 
-    def execute(self, name: str, args: dict[str, Any]) -> str:
+    def execute(self, name: str, args: Any) -> str:
         """Safely executes a tool by name."""
         if name not in self.tools:
             error_msg = f"Error: Tool '{name}' not found."
             logger.warning(error_msg)
             return error_msg
+
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+
+        if not isinstance(args, dict):
+            args = {}
             
         logger.info(f"Tool Execute: {name}", extra={"tool_args": args})
         try:
