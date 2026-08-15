@@ -53,7 +53,7 @@ class ContextEngine:
                 matches = self.symbol_store.find_symbol(kw)
                 relevant_symbols.extend(matches[:3])
         
-        unique_symbols = {s.name: s for s in relevant_symbols}.values()
+        unique_symbols = {(s.file_path, s.name, s.start_line): s for s in relevant_symbols}.values()
         
         context_parts = [
             "You are Forge CLI, an advanced autonomous AI coding assistant.",

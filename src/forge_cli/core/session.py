@@ -25,12 +25,18 @@ class Session:
     def load_history(self) -> list[dict[str, Any]]:
         return self.memory.get_messages(self.session_id)
 
-    def get_context(self) -> list[dict[str, Any]]:
+    def get_context(self, user_prompt: str = "") -> list[dict[str, Any]]:
         history = self.load_history()
+        if not user_prompt:
+            for msg in reversed(history):
+                if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+                    user_prompt = msg["content"]
+                    break
+
         engine = ContextEngine()
         system_prompt = {
             "role": "system",
-            "content": engine.build_system_prompt()
+            "content": engine.build_system_prompt(user_prompt)
         }
         if not history or history[0].get("role") != "system":
             return [system_prompt] + history
