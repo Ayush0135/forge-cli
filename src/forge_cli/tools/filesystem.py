@@ -43,7 +43,8 @@ class FileSystemTools:
             if action == "replace":
                 new_content = content.replace(target_text, replacement_text, 1)
             elif action == "insert":
-                new_content = content.replace(target_text, target_text + "\n" + replacement_text, 1)
+                separator = "" if target_text.endswith("\n") else "\n"
+                new_content = content.replace(target_text, target_text + separator + replacement_text, 1)
             elif action == "delete":
                 new_content = content.replace(target_text, "", 1)
             else:
