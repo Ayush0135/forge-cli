@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Generator
 from typing import Any
 
@@ -21,6 +22,9 @@ class Agent:
 
             if isinstance(response, dict) and response.get("type") == "tool_call":
                 tool_call = response
+                call_id = tool_call.get("id") or f"call_{uuid.uuid4().hex[:8]}"
+                tool_call["id"] = call_id
+
                 context.append({"role": "assistant", "content": "", "tool_call": tool_call})
 
                 # Execute tool
@@ -32,7 +36,7 @@ class Agent:
                         "role": "tool",
                         "name": tool_call["name"],
                         "content": result,
-                        "id": tool_call.get("id", "call_123"),
+                        "id": call_id,
                     }
                 )
             else:
@@ -65,6 +69,9 @@ class Agent:
                 context.append({"role": "assistant", "content": "".join(final_text_chunks)})
                 break
 
+            call_id = tool_call.get("id") or f"call_{uuid.uuid4().hex[:8]}"
+            tool_call["id"] = call_id
+
             yield f"\n[🔧 Executing tool: {tool_call['name']}(...)]\n"
 
             # Record the tool call intention
@@ -75,7 +82,7 @@ class Agent:
 
             # Feed the observation back to the LLM
             context.append(
-                {"role": "tool", "name": tool_call["name"], "content": result, "id": tool_call.get("id", "call_123")}
+                {"role": "tool", "name": tool_call["name"], "content": result, "id": call_id}
             )
 
             yield "[Observation received, generating response...]\n"

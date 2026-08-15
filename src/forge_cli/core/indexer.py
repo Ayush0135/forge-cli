@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import threading
@@ -10,20 +11,26 @@ from forge_cli.utils.logger import logger
 
 class RepositoryIndexer:
     """Scans and caches metadata about the repository asynchronously."""
+
+    # Maximum file size to inspect for configuration/framework detection (1 MB)
+    MAX_FILE_READ_SIZE = 1 * 1024 * 1024
     
     def __init__(self, workspace_path: str = "."):
         self.workspace_path = Path(workspace_path).resolve()
         self.cache_dir = Path.home() / ".forge" / "cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache_file = self.cache_dir / f"{self.workspace_path.name}_index.json"
+
+        path_hash = hashlib.sha256(str(self.workspace_path).encode("utf-8")).hexdigest()[:12]
+        self.cache_file = self.cache_dir / f"{self.workspace_path.name}_{path_hash}_index.json"
         self.index: dict[str, Any] = {}
         self.is_indexing = False
         self._lock = threading.Lock()
 
     def get_index(self) -> dict[str, Any]:
         """Returns the current index, loading from cache if necessary."""
-        if not self.index:
-            self._load_cache()
+        with self._lock:
+            if not self.index:
+                self._load_cache()
         if not self.index and not self.is_indexing:
             self.build_index_sync()
         return self.index
@@ -31,10 +38,12 @@ class RepositoryIndexer:
     def _load_cache(self):
         if self.cache_file.exists():
             try:
-                with open(self.cache_file, "r") as f:
-                    self.index = json.load(f)
-            except Exception:
-                pass
+                with open(self.cache_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.index = data
+            except Exception as e:
+                logger.warning(f"Failed to load index cache: {e}")
 
     def _save_cache(self):
         try:
@@ -61,7 +70,12 @@ class RepositoryIndexer:
         try:
             logger.info("Starting repository indexing...")
             
-            ignore_dirs = {".git", ".venv", "venv", "node_modules", "__pycache__", ".forge", "build", "dist", ".idea", ".vscode", "target"}
+            ignore_dirs = {
+                ".git", ".venv", "venv", "node_modules", "__pycache__", ".forge",
+                "build", "dist", ".idea", ".vscode", "target", ".next", ".nuxt",
+                ".cache", "coverage", "__snapshots__", ".pytest_cache", ".mypy_cache",
+                ".ruff_cache", "vendor", ".tox", "eggs"
+            }
             
             file_tree = []
             extensions: dict[str, int] = {}
@@ -71,7 +85,12 @@ class RepositoryIndexer:
             package_managers = set()
 
             for root, dirs, files in os.walk(self.workspace_path):
-                dirs[:] = [d for d in dirs if d not in ignore_dirs and not d.startswith(".")]
+                dirs[:] = [
+                    d for d in dirs
+                    if d not in ignore_dirs
+                    and not d.endswith(".egg-info")
+                    and (d == ".github" or not d.startswith("."))
+                ]
                 
                 try:
                     rel_root = Path(root).relative_to(self.workspace_path)
@@ -80,11 +99,14 @@ class RepositoryIndexer:
                     str_rel_root = ""
                 
                 for file in files:
-                    if file.startswith("."):
+                    if file.startswith(".") and file not in {".env", ".gitignore", ".env.example"}:
                         continue
                         
                     file_path = Path(root) / file
                     try:
+                        if not file_path.is_file():
+                            continue
+
                         size = file_path.stat().st_size
                         total_size += size
                         
@@ -99,17 +121,19 @@ class RepositoryIndexer:
                         if file == "package.json":
                             package_managers.add("npm/yarn/pnpm")
                             important_files.append(rel_path)
-                            content = file_path.read_text(errors="ignore")
-                            if "react" in content: frameworks.add("React")
-                            if "next" in content: frameworks.add("Next.js")
-                            if "vue" in content: frameworks.add("Vue")
+                            if size <= self.MAX_FILE_READ_SIZE:
+                                content = file_path.read_text(errors="ignore")
+                                if "react" in content: frameworks.add("React")
+                                if "next" in content: frameworks.add("Next.js")
+                                if "vue" in content: frameworks.add("Vue")
                             
-                        elif file == "requirements.txt" or file == "pyproject.toml":
+                        elif file in {"requirements.txt", "pyproject.toml"}:
                             package_managers.add("pip/uv")
                             important_files.append(rel_path)
-                            content = file_path.read_text(errors="ignore").lower()
-                            if "django" in content: frameworks.add("Django")
-                            if "fastapi" in content: frameworks.add("FastAPI")
+                            if size <= self.MAX_FILE_READ_SIZE:
+                                content = file_path.read_text(errors="ignore").lower()
+                                if "django" in content: frameworks.add("Django")
+                                if "fastapi" in content: frameworks.add("FastAPI")
                             
                         elif file == "Cargo.toml":
                             package_managers.add("cargo")
@@ -146,7 +170,8 @@ class RepositoryIndexer:
                 "tree": file_tree
             }
             
-            self.index = new_index
+            with self._lock:
+                self.index = new_index
             self._save_cache()
             logger.info("Repository indexing complete.")
             

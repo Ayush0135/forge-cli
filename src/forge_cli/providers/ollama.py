@@ -29,11 +29,22 @@ class OllamaProvider(BaseProvider):
             logger.error(f"Ollama API Error: {e!s}")
             return f"Error: {e!s}"
 
+    def _format_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        formatted = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "tool":
+                formatted.append({"role": "user", "content": f"[Tool Result for {msg.get('name', 'tool')}]: {content}"})
+            else:
+                formatted.append({"role": role, "content": str(content)})
+        return formatted
+
     def stream(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
     ) -> Generator[str | dict[str, Any], None, None]:
-        url = f"{self.base_url}/chat"
-        payload = {"model": self.model, "messages": messages, "stream": True}
+        url = f"{self.base_url}/api/chat"
+        payload = {"model": self.model, "messages": self._format_messages(messages), "stream": True}
 
         try:
             with httpx.Client() as client, client.stream("POST", url, json=payload, timeout=30.0) as response:

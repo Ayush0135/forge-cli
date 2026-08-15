@@ -23,17 +23,20 @@ class OpenAIProvider(BaseProvider):
             if msg["role"] == "user" or (msg["role"] == "assistant" and "tool_call" not in msg):
                 formatted.append({"role": msg["role"], "content": msg.get("content", "")})
             elif msg["role"] == "assistant" and "tool_call" in msg:
+                tc = msg["tool_call"]
+                args = tc.get("args", {})
+                args_str = json.dumps(args) if isinstance(args, dict) else str(args)
                 formatted.append(
                     {
                         "role": "assistant",
-                        "content": msg.get("content", ""),
+                        "content": msg.get("content", "") or None,
                         "tool_calls": [
                             {
-                                "id": msg["tool_call"].get("id", "call_123"),
+                                "id": tc.get("id", "call_123"),
                                 "type": "function",
                                 "function": {
-                                    "name": msg["tool_call"]["name"],
-                                    "arguments": json.dumps(msg["tool_call"]["args"]),
+                                    "name": tc["name"],
+                                    "arguments": args_str,
                                 },
                             }
                         ],
@@ -154,10 +157,14 @@ class OpenAIProvider(BaseProvider):
                                     continue
 
                         if is_tool_call:
+                            try:
+                                parsed_args = json.loads(tool_call_args) if tool_call_args else {}
+                            except json.JSONDecodeError:
+                                parsed_args = {}
                             yield {
                                 "type": "tool_call",
                                 "name": tool_call_name,
-                                "args": json.loads(tool_call_args) if tool_call_args else {},
+                                "args": parsed_args,
                                 "id": tool_call_id or "call_123",
                             }
                         return

@@ -14,6 +14,7 @@ class Session:
         self.memory = MemorySystem()
         self.provider = ProviderFactory.create(provider_name, model)
         self.agent = Agent(self.provider)
+        self.context_engine = ContextEngine()
 
         if session_id:
             self.session_id = session_id
@@ -27,10 +28,15 @@ class Session:
 
     def get_context(self) -> list[dict[str, Any]]:
         history = self.load_history()
-        engine = ContextEngine()
+        latest_user_prompt = ""
+        for msg in reversed(history):
+            if msg.get("role") == "user" and msg.get("content"):
+                latest_user_prompt = str(msg["content"])
+                break
+
         system_prompt = {
             "role": "system",
-            "content": engine.build_system_prompt()
+            "content": self.context_engine.build_system_prompt(latest_user_prompt)
         }
         if not history or history[0].get("role") != "system":
             return [system_prompt] + history
