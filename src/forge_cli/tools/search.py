@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import re
@@ -28,7 +29,9 @@ class SearchTools:
         return json.dumps({"symbols": results, "total": len(symbols)})
 
     @staticmethod
+    @functools.lru_cache(maxsize=1)
     def _has_ripgrep() -> bool:
+        """Cache ripgrep availability to avoid spawning subprocesses on every search call."""
         try:
             subprocess.run(["rg", "--version"], capture_output=True, check=True)
             return True
