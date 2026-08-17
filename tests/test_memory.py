@@ -24,3 +24,13 @@ def test_memory_add_message(temp_db_path: str) -> None:
     assert len(messages) == 1
     assert messages[0]["role"] == "user"
     assert messages[0]["content"] == "Hello world"
+
+
+def test_memory_indexes(temp_db_path: str) -> None:
+    MemorySystem(db_path=temp_db_path)
+
+    with sqlite3.connect(temp_db_path) as conn:
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        indexes = [row[0] for row in cursor.fetchall()]
+        assert "idx_messages_session_id" in indexes
+        assert "idx_sessions_created_at" in indexes
