@@ -2,11 +2,19 @@ import json
 import logging
 import logging.handlers
 from pathlib import Path
+from typing import ClassVar
 
 from rich.logging import RichHandler
 
 
 class StructuredJSONFormatter(logging.Formatter):
+    _STANDARD_LOG_RECORD_KEYS: ClassVar[set[str]] = {
+        "args", "asctime", "created", "exc_info", "exc_text", "filename",
+        "funcName", "levelname", "levelno", "lineno", "module", "msecs",
+        "message", "msg", "name", "pathname", "process", "processName",
+        "relativeCreated", "stack_info", "thread", "threadName",
+    }
+
     def format(self, record):
         log_data = {
             "timestamp": self.formatTime(record, self.datefmt),
@@ -17,8 +25,10 @@ class StructuredJSONFormatter(logging.Formatter):
             "lineno": record.lineno,
         }
         
+        # OPTIMIZATION: Use pre-allocated set for O(1) lookup to check standard LogRecord keys
+        # avoiding list allocation and O(N) linear search per attribute on every log entry.
         for key, value in record.__dict__.items():
-            if key not in ["args", "asctime", "created", "exc_info", "exc_text", "filename", "funcName", "levelname", "levelno", "lineno", "module", "msecs", "message", "msg", "name", "pathname", "process", "processName", "relativeCreated", "stack_info", "thread", "threadName"]:
+            if key not in self._STANDARD_LOG_RECORD_KEYS:
                 try:
                     json.dumps(value) 
                     log_data[key] = value
