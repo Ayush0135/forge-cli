@@ -1,0 +1,3 @@
+## 2025-05-18 - Pre-allocated sets vs inline list literal checks in hot paths
+**Learning:** In hot execution paths such as custom logging formatters (`StructuredJSONFormatter.format`), using an inline list literal for membership checks (`key not in ["..."]`) causes repeated list allocation and $O(N)$ linear scans per record attribute. Switching to a pre-allocated class-level `set` gives $O(1)$ set lookup and eliminates per-log allocation overhead.
+**Action:** Always check log formatters, loop filters, and record processing routines for inline list literals and convert them to class-level or module-level pre-allocated sets.
