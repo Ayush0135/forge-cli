@@ -36,6 +36,12 @@ class MemorySystem:
                     FOREIGN KEY(session_id) REFERENCES sessions(session_id)
                 )
             """)
+            # OPTIMIZATION: Add database indexes on frequently queried fields.
+            # Indexing `messages.session_id` optimizes message retrieval from O(N) full table scan
+            # to O(log N) index scan during `get_messages()`.
+            # Indexing `sessions.created_at` speeds up finding the latest session in `get_latest_session_id()`.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at)")
             conn.commit()
 
     def create_session(self, session_id: str, model: str) -> None:
