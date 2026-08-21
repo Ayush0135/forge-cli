@@ -12,9 +12,26 @@ class SymbolStore:
         self.workspace_path = Path(workspace_path).resolve()
         self.parser = CodeParser()
         self.symbols: list[Symbol] = []
+        # Pre-computed search cache (symbol, name_lower, kind_lower) for fast matching
+        self._search_cache: list[tuple[Symbol, str, str]] = []
+        # Index mapping symbol names to list of symbols for O(1) definition lookups
+        self._by_name: dict[str, list[Symbol]] = {}
         self.cache_dir = Path.home() / ".forge" / "cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_file = self.cache_dir / f"{self.workspace_path.name}_symbols.json"
+
+    def _rebuild_indices(self):
+        """Rebuild internal search cache and name index for fast queries."""
+        self._search_cache = [(s, s.name.lower(), s.kind.lower()) for s in self.symbols]
+        by_name: dict[str, list[Symbol]] = {}
+        for s in self.symbols:
+            by_name.setdefault(s.name, []).append(s)
+        self._by_name = by_name
+
+    def _ensure_indices(self):
+        """Ensure search indices match current symbol list."""
+        if len(self._search_cache) != len(self.symbols):
+            self._rebuild_indices()
 
     def build_store(self, files: list[str]):
         """Builds the symbol store from a list of files."""
@@ -23,6 +40,7 @@ class SymbolStore:
             file_path = self.workspace_path / file
             if file_path.exists():
                 self.symbols.extend(self.parser.parse_file(str(file_path)))
+        self._rebuild_indices()
         self._save_cache()
 
     def update_file(self, file_path: str):
@@ -34,17 +52,22 @@ class SymbolStore:
         # Parse new
         if Path(file_path).exists():
             self.symbols.extend(self.parser.parse_file(file_path))
+        self._rebuild_indices()
         self._save_cache()
 
     def find_symbol(self, query: str) -> list[Symbol]:
         """Fuzzy searches symbols by name or kind."""
+        self._ensure_indices()
         query_lower = query.lower()
-        return [s for s in self.symbols if query_lower in s.name.lower() or query_lower in s.kind.lower()]
+        # Fast match against pre-lowercased tuples to avoid repeated .lower() calls
+        return [s for s, name_lower, kind_lower in self._search_cache if query_lower in name_lower or query_lower in kind_lower]
 
     def find_definition(self, symbol_name: str) -> list[Symbol]:
         """Finds strict definition of a symbol (class, function, method)."""
+        self._ensure_indices()
         valid_kinds = {"class", "function", "method", "variable"}
-        return [s for s in self.symbols if s.name == symbol_name and s.kind in valid_kinds]
+        # Fast lookup by symbol_name via dictionary index
+        return [s for s in self._by_name.get(symbol_name, []) if s.kind in valid_kinds]
 
     def find_references(self, symbol_name: str) -> list[Symbol]:
         """Finds references (simplistic implementation based on text match within snippets)."""
@@ -93,6 +116,7 @@ class SymbolStore:
                 )
                 for d in data
             ]
+            self._rebuild_indices()
             return True
         except Exception:
             return False
