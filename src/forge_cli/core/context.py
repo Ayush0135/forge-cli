@@ -2,6 +2,7 @@ import json
 import re
 import threading
 from pathlib import Path
+from typing import ClassVar
 
 from forge_cli.core.indexer import RepositoryIndexer
 from forge_cli.core.symbols import SymbolStore
@@ -9,6 +10,12 @@ from forge_cli.core.symbols import SymbolStore
 
 class ContextEngine:
     """Builds intelligent repository context to avoid LLM context bloat."""
+
+    _STOPWORDS: ClassVar[set[str]] = {
+        "find", "search", "the", "and", "how", "what", "where", "can", "you", "fix",
+        "for", "with", "this", "that", "from", "into", "your", "have", "will", "are",
+        "was", "not", "but", "all", "get", "set", "use", "has", "had", "out", "our"
+    }
 
     def __init__(self, workspace_path: str = "."):
         self.workspace_path = Path(workspace_path).resolve()
@@ -47,9 +54,13 @@ class ContextEngine:
         
         relevant_symbols = []
         if self.symbol_store.symbols:
+            seen_keywords = set()
             for kw in keywords:
-                if kw.lower() in {"find", "search", "the", "and", "how", "what", "where", "can", "you", "fix"}:
+                kw_lower = kw.lower()
+                # Skip common stopwords and duplicate tokens to avoid redundant symbol queries
+                if kw_lower in self._STOPWORDS or kw_lower in seen_keywords:
                     continue
+                seen_keywords.add(kw_lower)
                 matches = self.symbol_store.find_symbol(kw)
                 relevant_symbols.extend(matches[:3])
         
