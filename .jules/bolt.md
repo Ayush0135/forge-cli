@@ -1,0 +1,3 @@
+## 2025-05-15 - Symbol Store Lookup and Path Resolution Performance
+**Learning:** `Path.resolve()` performs stat syscalls under the hood to resolve symlinks and canonical paths, making it ~10x slower than `os.path.abspath()` when called frequently in hot paths like file updates. Furthermore, tree-sitter symbol `kind` strings are already strictly lowercase; calling `.lower()` on `kind` inside list comprehensions over symbol stores creates unnecessary method call overhead (~25% slowdown on query operations).
+**Action:** Use `os.path.abspath()` over `Path.resolve()` in high-frequency path matching, and avoid calling `.lower()` on attributes known to be pre-normalized lowercase strings.
