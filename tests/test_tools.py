@@ -16,6 +16,19 @@ def test_search_tool():
     result = SearchTools.search_code("def test_search_tool", path="tests")
     data = json.loads(result)
     assert "error" not in data
+    assert len(data["matches"]) > 0
+
+def test_search_tool_regex_multiline():
+    result = SearchTools.search_code("^def test_search_tool", path="tests", regex=True)
+    data = json.loads(result)
+    assert "error" not in data
+    assert len(data["matches"]) > 0
+
+def test_search_files_dotfile():
+    result = SearchTools.search_files(".env.example", path=".")
+    data = json.loads(result)
+    assert "error" not in data
+    assert len(data["files"]) > 0
     
 def test_git_tool():
     result = GitTools.git_status()
