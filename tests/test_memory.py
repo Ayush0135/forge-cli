@@ -12,6 +12,10 @@ def test_memory_init(temp_db_path: str) -> None:
         assert "sessions" in tables
         assert "messages" in tables
 
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        indices = [row[0] for row in cursor.fetchall()]
+        assert "idx_messages_session_id" in indices
+
 
 def test_memory_add_message(temp_db_path: str) -> None:
     memory = MemorySystem(db_path=temp_db_path)
