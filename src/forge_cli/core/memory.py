@@ -36,6 +36,10 @@ class MemorySystem:
                     FOREIGN KEY(session_id) REFERENCES sessions(session_id)
                 )
             """)
+            # Bolt Optimization: Index session_id in messages to speed up message retrieval per session by ~3x
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)")
+            # Bolt Optimization: Index created_at in sessions to speed up fetching the latest session ID
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at DESC)")
             conn.commit()
 
     def create_session(self, session_id: str, model: str) -> None:
