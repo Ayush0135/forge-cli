@@ -1,0 +1,3 @@
+## 2025-05-18 - Fast Repository Directory Traversal with os.scandir
+**Learning:** In Python repository indexers, `os.walk` combined with `Path(root) / file` and `file_path.stat().st_size` creates substantial overhead due to repeated `stat()` system calls and allocating thousands of short-lived `Path` objects. `os.scandir` yields `DirEntry` objects whose `stat()` metadata is cached during directory scanning on POSIX/Windows systems.
+**Action:** Use `os.scandir` with an explicit directory stack and string relative path operations for file tree indexing in Python instead of `os.walk` + `Path.stat()`.
