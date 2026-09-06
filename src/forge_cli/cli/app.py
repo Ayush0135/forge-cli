@@ -12,22 +12,16 @@ console = Console()
 
 
 @app.callback(invoke_without_command=True)
-def main(
-    ctx: typer.Context, prompt: str | None = typer.Argument(None, help="Optional single prompt to run")
-) -> None:
+def main(ctx: typer.Context) -> None:
     """
     Forge CLI - AI Coding Assistant
     """
     if ctx.invoked_subcommand is not None:
         return
 
-    if prompt:
-        run_single_prompt(prompt)
-    else:
-        console.print(
-            Panel.fit("[bold cyan]Forge CLI v0.1[/bold cyan]\n[white]AI Coding Assistant[/white]", border_style="cyan")
-        )
-        start_interactive_chat()
+    # If no subcommand is invoked, this will be handled by the wrapper in main.py,
+    # but for safety if called directly without arguments:
+    pass
 
 
 @app.command()
